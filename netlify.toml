@@ -4,3 +4,7 @@
 
 [functions]
   directory = "netlify/functions"
+
+[dev]
+  command = "echo 'Dev server ready'"
+  port = 8888
