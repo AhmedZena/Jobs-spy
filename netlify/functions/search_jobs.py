@@ -12,16 +12,6 @@ try:
 except Exception as import_error:
     print(f"IMPORT ERROR: {str(import_error)}")
     print(traceback.format_exc())
-    # Fallback to mock module for testing
-    try:
-        import sys
-        sys.path.insert(0, '/workspace')
-        from mock_jobspy import scrape_jobs
-        import pandas as pd
-        print("Successfully imported mock jobspy and pandas")
-    except Exception as mock_error:
-        print(f"MOCK IMPORT ERROR: {str(mock_error)}")
-        print(traceback.format_exc())
 
 
 def handler(event, context):
@@ -59,7 +49,14 @@ def handler(event, context):
         search_term = body.get('search_term', '')
         location = body.get('location', '')
         job_type = body.get('job_type', None)
-        is_remote = body.get('is_remote', None)
+        is_remote_raw = body.get('is_remote', None)
+        # Convert is_remote to boolean (JobSpy requires boolean, not None)
+        if is_remote_raw == 'true':
+            is_remote = True
+        elif is_remote_raw == 'false':
+            is_remote = False
+        else:
+            is_remote = False  # Default to False when not specified
         results_wanted = min(int(body.get('results_wanted', 20)), 20)  # Limit to 20 to avoid timeout
         hours_old = int(body.get('hours_old', 72))
 
