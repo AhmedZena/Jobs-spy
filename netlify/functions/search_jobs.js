@@ -1,7 +1,3 @@
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-
 exports.handler = async (event, context) => {
     // Handle CORS preflight
     if (event.httpMethod === 'OPTIONS') {
@@ -28,7 +24,7 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        console.log('Starting job search...');
+        console.log('Search jobs function called');
         
         // Parse the request body
         const body = JSON.parse(event.body || '{}');
@@ -46,94 +42,70 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Try to use the Python script if available, otherwise fall back to mock data
-        try {
-            const pythonScript = path.join(__dirname, 'search_jobs.py');
-            
-            // Check if Python script exists
-            if (fs.existsSync(pythonScript)) {
-                console.log('Attempting to use Python script...');
-                
-                // Create a temporary input file
-                const inputFile = path.join(__dirname, 'temp_input.json');
-                fs.writeFileSync(inputFile, JSON.stringify(body));
-                
-                // Execute Python script
-                const result = await new Promise((resolve, reject) => {
-                    exec(`python3 ${pythonScript} ${inputFile}`, (error, stdout, stderr) => {
-                        // Clean up temp file
-                        if (fs.existsSync(inputFile)) {
-                            fs.unlinkSync(inputFile);
-                        }
-                        
-                        if (error) {
-                            console.error('Python script error:', error);
-                            console.error('Python stderr:', stderr);
-                            reject(error);
-                        } else {
-                            try {
-                                const data = JSON.parse(stdout);
-                                resolve(data);
-                            } catch (parseError) {
-                                console.error('Failed to parse Python output:', parseError);
-                                console.error('Python stdout:', stdout);
-                                reject(parseError);
-                            }
-                        }
-                    });
-                });
-                
-                return {
-                    statusCode: 200,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Access-Control-Allow-Origin': '*'
-                    },
-                    body: JSON.stringify(result)
-                };
-            }
-        } catch (pythonError) {
-            console.log('Python script failed, using mock data:', pythonError.message);
-        }
-
-        // Fallback to mock data
+        // Create mock job data based on search term
         const mockJobs = [
             {
                 id: '1',
                 title: `${body.search_term} Developer`,
-                company: 'Tech Corp',
+                company: 'Tech Solutions Inc',
                 location: body.location || 'Remote',
                 job_type: body.job_type || 'Full-time',
                 date_posted: new Date().toISOString(),
-                salary: 'Not specified',
+                salary: '$80,000 - $120,000',
                 job_url: 'https://example.com/job/1',
-                description: `Great opportunity for a ${body.search_term} developer...`,
+                description: `Exciting opportunity for a ${body.search_term} developer to join our growing team...`,
                 site: 'Indeed',
                 is_remote: body.is_remote === 'true'
             },
             {
                 id: '2',
                 title: `Senior ${body.search_term} Engineer`,
-                company: 'Startup Inc',
+                company: 'Innovation Labs',
                 location: body.location || 'San Francisco, CA',
                 job_type: body.job_type || 'Full-time',
                 date_posted: new Date().toISOString(),
-                salary: '$120,000 - $150,000',
+                salary: '$120,000 - $160,000',
                 job_url: 'https://example.com/job/2',
-                description: `Looking for an experienced ${body.search_term} engineer...`,
+                description: `We're looking for an experienced ${body.search_term} engineer to lead our development team...`,
                 site: 'Indeed',
                 is_remote: body.is_remote === 'true'
             },
             {
                 id: '3',
                 title: `${body.search_term} Specialist`,
-                company: 'Innovation Labs',
+                company: 'StartupCo',
                 location: body.location || 'New York, NY',
                 job_type: body.job_type || 'Full-time',
                 date_posted: new Date().toISOString(),
-                salary: '$100,000 - $130,000',
+                salary: '$90,000 - $130,000',
                 job_url: 'https://example.com/job/3',
-                description: `Join our team as a ${body.search_term} specialist...`,
+                description: `Join our dynamic team as a ${body.search_term} specialist and help shape the future...`,
+                site: 'Indeed',
+                is_remote: body.is_remote === 'true'
+            },
+            {
+                id: '4',
+                title: `Lead ${body.search_term} Developer`,
+                company: 'Enterprise Corp',
+                location: body.location || 'Austin, TX',
+                job_type: body.job_type || 'Full-time',
+                date_posted: new Date().toISOString(),
+                salary: '$110,000 - $150,000',
+                job_url: 'https://example.com/job/4',
+                description: `Lead our ${body.search_term} development initiatives and mentor junior developers...`,
+                site: 'Indeed',
+                is_remote: body.is_remote === 'true'
+            },
+            {
+                id: '5',
+                title: `${body.search_term} Consultant`,
+                company: 'Consulting Group',
+                location: body.location || 'Chicago, IL',
+                job_type: body.job_type || 'Contract',
+                date_posted: new Date().toISOString(),
+                salary: '$100 - $150 per hour',
+                job_url: 'https://example.com/job/5',
+                description: `Work with various clients as a ${body.search_term} consultant on exciting projects...`,
                 site: 'Indeed',
                 is_remote: body.is_remote === 'true'
             }
@@ -144,8 +116,11 @@ exports.handler = async (event, context) => {
             total: mockJobs.length,
             search_term: body.search_term,
             location: body.location || '',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            message: 'Mock data - Python integration coming soon!'
         };
+
+        console.log('Returning mock data:', result);
 
         return {
             statusCode: 200,
