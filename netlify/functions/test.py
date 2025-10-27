@@ -5,6 +5,9 @@ def handler(event, context):
     """
     Simple test endpoint to verify serverless functions are working
     """
+    print(f"Test function called with event: {event}")
+    print(f"Context: {context}")
+    
     return {
         'statusCode': 200,
         'headers': {
