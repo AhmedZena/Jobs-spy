@@ -1,6 +1,9 @@
 [build]
-  command = "pip install -r requirements.txt"
+  command = "echo 'Build complete'"
   publish = "public"
+
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
 
 [[redirects]]
   from = "/api/*"
@@ -9,3 +12,4 @@
 
 [functions]
   directory = "netlify/functions"
+  node_bundler = "esbuild"

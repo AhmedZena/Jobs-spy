@@ -1,0 +1,10 @@
+{
+  "name": "jobs-spy",
+  "version": "1.0.0",
+  "description": "Job search automation",
+  "scripts": {
+    "build": "echo 'Build complete'"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
