@@ -9,11 +9,26 @@ def handler(event, context):
     """
     Netlify serverless function to search jobs across multiple platforms
     """
+    # Handle CORS preflight
+    if event.get('httpMethod') == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS'
+            },
+            'body': ''
+        }
+
     try:
         # Parse request body
         if event.get('httpMethod') != 'POST':
             return {
                 'statusCode': 405,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*'
+                },
                 'body': json.dumps({'error': 'Method not allowed'})
             }
 
@@ -28,6 +43,10 @@ def handler(event, context):
         if not search_term:
             return {
                 'statusCode': 400,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
                 'body': json.dumps({'error': 'search_term is required'})
             }
 

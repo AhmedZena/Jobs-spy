@@ -63,7 +63,7 @@ class JobSearchApp {
         this.hideResults();
 
         try {
-            const response = await fetch('/api/search_jobs', {
+            const response = await fetch('/.netlify/functions/search_jobs', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
