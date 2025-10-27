@@ -1,4 +1,4 @@
-jobspy>=1.1.40
+jobspy>=0.31.0
 pandas>=2.0.0
 flask>=3.0.0
 flask-cors>=4.0.0
