@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 import json
 import hashlib
-import sys
 import traceback
 from datetime import datetime
 
@@ -13,142 +11,6 @@ try:
 except Exception as import_error:
     print(f"IMPORT ERROR: {str(import_error)}", file=sys.stderr)
     print(traceback.format_exc(), file=sys.stderr)
-    sys.exit(1)
-
-
-def main():
-    try:
-        # Read input from command line argument (JSON file path)
-        if len(sys.argv) < 2:
-            result = {
-                'error': 'No input file provided',
-                'jobs': [],
-                'total': 0
-            }
-            print(json.dumps(result))
-            return
-
-        input_file = sys.argv[1]
-        with open(input_file, 'r') as f:
-            body = json.load(f)
-
-        search_term = body.get('search_term', '')
-        location = body.get('location', '')
-        job_type = body.get('job_type', None)
-        is_remote_raw = body.get('is_remote', None)
-        
-        # Convert is_remote to boolean (JobSpy requires boolean, not None)
-        if is_remote_raw == 'true':
-            is_remote = True
-        elif is_remote_raw == 'false':
-            is_remote = False
-        else:
-            is_remote = False  # Default to False when not specified
-            
-        results_wanted = min(int(body.get('results_wanted', 20)), 20)  # Limit to 20 to avoid timeout
-        hours_old = int(body.get('hours_old', 72))
-
-        print(f"Search params: term={search_term}, location={location}, results={results_wanted}", file=sys.stderr)
-
-        if not search_term:
-            print("ERROR: No search term provided", file=sys.stderr)
-            result = {
-                'error': 'search_term is required',
-                'jobs': [],
-                'total': 0
-            }
-            print(json.dumps(result))
-            return
-
-        # Start with just Indeed to avoid timeout (most reliable according to docs)
-        sites = ['indeed']
-
-        print(f"Searching {sites} for '{search_term}' in '{location}'...", file=sys.stderr)
-        print(f"Results wanted: {results_wanted}, Hours old: {hours_old}", file=sys.stderr)
-
-        jobs_df = scrape_jobs(
-            site_name=sites,
-            search_term=search_term,
-            location=location,
-            results_wanted=results_wanted,
-            hours_old=hours_old,
-            country_indeed='USA',
-            job_type=job_type,
-            is_remote=is_remote
-        )
-
-        print(f"JobSpy returned: {type(jobs_df)}", file=sys.stderr)
-
-        if jobs_df is None or jobs_df.empty:
-            print("No jobs found, returning empty result", file=sys.stderr)
-            result = {
-                'jobs': [],
-                'total': 0,
-                'message': 'No jobs found'
-            }
-            print(json.dumps(result))
-            return
-
-        print(f"Found {len(jobs_df)} jobs, processing...", file=sys.stderr)
-
-        # Deduplicate jobs based on title and company
-        jobs_df['job_hash'] = jobs_df.apply(
-            lambda row: hashlib.md5(
-                f"{row.get('title', '')}{row.get('company', '')}{row.get('location', '')}".lower().encode()
-            ).hexdigest(),
-            axis=1
-        )
-
-        # Remove duplicates
-        jobs_df = jobs_df.drop_duplicates(subset=['job_hash'], keep='first')
-        print(f"After deduplication: {len(jobs_df)} unique jobs", file=sys.stderr)
-
-        # Convert to JSON-serializable format
-        jobs_list = []
-        for idx, row in jobs_df.iterrows():
-            job = {
-                'id': row.get('job_hash', str(idx)),
-                'title': row.get('title', 'N/A'),
-                'company': row.get('company', 'N/A'),
-                'location': row.get('location', 'N/A'),
-                'job_type': row.get('job_type', 'N/A'),
-                'date_posted': str(row.get('date_posted', 'N/A')),
-                'salary': row.get('interval', 'N/A') if pd.notna(row.get('interval')) else 'N/A',
-                'job_url': row.get('job_url', '#'),
-                'description': row.get('description', 'N/A')[:500] if pd.notna(row.get('description')) else 'N/A',
-                'site': row.get('site', 'N/A'),
-                'is_remote': row.get('is_remote', False)
-            }
-            jobs_list.append(job)
-
-        # Sort by date posted (newest first)
-        jobs_list.sort(key=lambda x: x['date_posted'], reverse=True)
-
-        print(f"Returning {len(jobs_list)} jobs to client", file=sys.stderr)
-
-        result = {
-            'jobs': jobs_list,
-            'total': len(jobs_list),
-            'search_term': search_term,
-            'location': location,
-            'timestamp': datetime.now().isoformat()
-        }
-
-        print("Successfully created response", file=sys.stderr)
-        print(json.dumps(result))
-
-    except Exception as e:
-        error_details = {
-            'error': str(e),
-            'type': type(e).__name__,
-            'message': 'Failed to fetch jobs'
-        }
-
-        print(f"ERROR CAUGHT: {str(e)}", file=sys.stderr)
-        print(f"Error type: {type(e).__name__}", file=sys.stderr)
-        print(traceback.format_exc(), file=sys.stderr)
-
-        print(json.dumps(error_details))
 
 
 def handler(event, context):
@@ -320,7 +182,3 @@ def handler(event, context):
             },
             'body': json.dumps(error_details)
         }
-
-
-if __name__ == '__main__':
-    main()
