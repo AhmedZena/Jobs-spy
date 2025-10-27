@@ -1,3 +1,58 @@
+// Debug Console
+class DebugConsole {
+    constructor() {
+        this.debugContent = document.getElementById('debugContent');
+        this.setupListeners();
+        this.log('Debug console initialized', 'info');
+    }
+
+    setupListeners() {
+        document.getElementById('clearConsoleBtn').addEventListener('click', () => this.clear());
+        document.getElementById('toggleConsoleBtn').addEventListener('click', () => this.toggle());
+    }
+
+    log(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement('div');
+        logEntry.className = `debug-log ${type}`;
+        logEntry.innerHTML = `<span class="debug-timestamp">[${timestamp}]</span>${this.escapeHtml(message)}`;
+        this.debugContent.appendChild(logEntry);
+        this.debugContent.scrollTop = this.debugContent.scrollHeight;
+
+        // Also log to browser console
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    error(message, error) {
+        const errorMsg = error ? `${message}: ${error.message || error}` : message;
+        this.log(errorMsg, 'error');
+        console.error(message, error);
+    }
+
+    clear() {
+        this.debugContent.innerHTML = '';
+        this.log('Console cleared', 'info');
+    }
+
+    toggle() {
+        const content = this.debugContent;
+        const btn = document.getElementById('toggleConsoleBtn');
+        if (content.classList.contains('collapsed')) {
+            content.classList.remove('collapsed');
+            btn.textContent = '−';
+        } else {
+            content.classList.add('collapsed');
+            btn.textContent = '+';
+        }
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
 // Job Search Application
 class JobSearchApp {
     constructor() {
@@ -6,6 +61,7 @@ class JobSearchApp {
         this.currentPage = 1;
         this.jobsPerPage = 10;
         this.appliedJobs = this.loadAppliedJobs();
+        this.debug = new DebugConsole();
         this.initializeEventListeners();
     }
 
@@ -53,8 +109,11 @@ class JobSearchApp {
             hours_old: parseInt(document.getElementById('hoursOld').value)
         };
 
+        this.debug.log(`Starting search: ${formData.search_term} in ${formData.location || 'any location'}`, 'info');
+
         if (!formData.search_term) {
             this.showError('Please enter a job title or keywords');
+            this.debug.error('Search term is required');
             return;
         }
 
@@ -63,7 +122,11 @@ class JobSearchApp {
         this.hideResults();
 
         try {
-            const response = await fetch('/.netlify/functions/search_jobs', {
+            const apiUrl = '/.netlify/functions/search_jobs';
+            this.debug.log(`Fetching from: ${apiUrl}`, 'info');
+            this.debug.log(`Request body: ${JSON.stringify(formData)}`, 'info');
+
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -71,12 +134,31 @@ class JobSearchApp {
                 body: JSON.stringify(formData)
             });
 
-            const data = await response.json();
+            this.debug.log(`Response status: ${response.status} ${response.statusText}`, 'info');
+            this.debug.log(`Response headers: ${JSON.stringify([...response.headers.entries()])}`, 'info');
+
+            // Get response text first to see what we're getting
+            const responseText = await response.text();
+            this.debug.log(`Response body length: ${responseText.length} chars`, 'info');
+            this.debug.log(`Response body preview: ${responseText.substring(0, 200)}...`, 'info');
+
+            // Try to parse as JSON
+            let data;
+            try {
+                data = JSON.parse(responseText);
+                this.debug.log('Successfully parsed JSON response', 'success');
+            } catch (parseError) {
+                this.debug.error('Failed to parse JSON', parseError);
+                this.debug.log(`Full response: ${responseText}`, 'error');
+                throw new Error(`Invalid JSON response: ${parseError.message}`);
+            }
 
             if (!response.ok) {
+                this.debug.error(`API error: ${data.error || 'Unknown error'}`);
                 throw new Error(data.error || 'Failed to fetch jobs');
             }
 
+            this.debug.log(`Received ${data.jobs?.length || 0} jobs`, 'success');
             this.allJobs = data.jobs || [];
             this.currentPage = 1;
             this.filterJobs();
@@ -85,7 +167,7 @@ class JobSearchApp {
             this.renderCurrentPage();
 
         } catch (error) {
-            console.error('Error:', error);
+            this.debug.error('Search failed', error);
             this.hideLoading();
             this.showError(`Error: ${error.message}. Please try again.`);
         }
