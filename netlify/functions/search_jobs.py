@@ -1,14 +1,25 @@
 import json
 import hashlib
+import sys
+import traceback
 from datetime import datetime
-from jobspy import scrape_jobs
-import pandas as pd
+
+# Try importing dependencies with error handling
+try:
+    from jobspy import scrape_jobs
+    import pandas as pd
+    print("Successfully imported jobspy and pandas")
+except Exception as import_error:
+    print(f"IMPORT ERROR: {str(import_error)}")
+    print(traceback.format_exc())
 
 
 def handler(event, context):
     """
     Netlify serverless function to search jobs across multiple platforms
     """
+    print(f"Function invoked: {event.get('httpMethod')} {event.get('path')}")
+
     # Handle CORS preflight
     if event.get('httpMethod') == 'OPTIONS':
         return {
@@ -22,6 +33,7 @@ def handler(event, context):
         }
 
     try:
+        print("Starting job search handler...")
         # Parse request body
         if event.get('httpMethod') != 'POST':
             return {
@@ -32,15 +44,19 @@ def handler(event, context):
                 'body': json.dumps({'error': 'Method not allowed'})
             }
 
+        print("Parsing request body...")
         body = json.loads(event.get('body', '{}'))
         search_term = body.get('search_term', '')
         location = body.get('location', '')
         job_type = body.get('job_type', None)
         is_remote = body.get('is_remote', None)
-        results_wanted = int(body.get('results_wanted', 50))
+        results_wanted = min(int(body.get('results_wanted', 20)), 20)  # Limit to 20 to avoid timeout
         hours_old = int(body.get('hours_old', 72))
 
+        print(f"Search params: term={search_term}, location={location}, results={results_wanted}")
+
         if not search_term:
+            print("ERROR: No search term provided")
             return {
                 'statusCode': 400,
                 'headers': {
@@ -50,11 +66,12 @@ def handler(event, context):
                 'body': json.dumps({'error': 'search_term is required'})
             }
 
-        # Define sites to search
-        sites = ['indeed', 'linkedin', 'zip_recruiter', 'google']
+        # Start with just Indeed to avoid timeout (most reliable according to docs)
+        sites = ['indeed']
 
-        # Scrape jobs from multiple sites
-        print(f"Searching for '{search_term}' in '{location}'...")
+        print(f"Searching {sites} for '{search_term}' in '{location}'...")
+        print(f"Results wanted: {results_wanted}, Hours old: {hours_old}")
+
         jobs_df = scrape_jobs(
             site_name=sites,
             search_term=search_term,
@@ -66,7 +83,10 @@ def handler(event, context):
             is_remote=is_remote
         )
 
+        print(f"JobSpy returned: {type(jobs_df)}")
+
         if jobs_df is None or jobs_df.empty:
+            print("No jobs found, returning empty result")
             return {
                 'statusCode': 200,
                 'headers': {
@@ -80,6 +100,8 @@ def handler(event, context):
                 })
             }
 
+        print(f"Found {len(jobs_df)} jobs, processing...")
+
         # Deduplicate jobs based on title and company
         jobs_df['job_hash'] = jobs_df.apply(
             lambda row: hashlib.md5(
@@ -90,6 +112,7 @@ def handler(event, context):
 
         # Remove duplicates
         jobs_df = jobs_df.drop_duplicates(subset=['job_hash'], keep='first')
+        print(f"After deduplication: {len(jobs_df)} unique jobs")
 
         # Convert to JSON-serializable format
         jobs_list = []
@@ -112,7 +135,9 @@ def handler(event, context):
         # Sort by date posted (newest first)
         jobs_list.sort(key=lambda x: x['date_posted'], reverse=True)
 
-        return {
+        print(f"Returning {len(jobs_list)} jobs to client")
+
+        result = {
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json',
@@ -129,16 +154,25 @@ def handler(event, context):
             })
         }
 
+        print("Successfully created response")
+        return result
+
     except Exception as e:
-        print(f"Error: {str(e)}")
+        error_details = {
+            'error': str(e),
+            'type': type(e).__name__,
+            'message': 'Failed to fetch jobs'
+        }
+
+        print(f"ERROR CAUGHT: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        print(traceback.format_exc())
+
         return {
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({
-                'error': str(e),
-                'message': 'Failed to fetch jobs'
-            })
+            'body': json.dumps(error_details)
         }
